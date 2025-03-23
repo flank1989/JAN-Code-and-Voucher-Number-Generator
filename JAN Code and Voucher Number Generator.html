@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JAN Code Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.0/JsBarcode.all.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 5px;
+            font-size: 14px;
+        }
+        #error, #voucher-error {
+            color: red;
+        }
+        .generator {
+            margin-bottom: 30px;
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+            width: 100%;
+        }
+        .jan-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .jan-input {
+            width: 18%;
+            margin-bottom: 10px;
+        }
+        .barcode-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .barcode-item {
+            width: 18%;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        #voucherResult {
+            margin-top: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="generator">
+            <h2>JAN Code Generator</h2>
+            <div class="jan-inputs">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+                <input type="text" class="jan-input" placeholder="JAN Code (13 digits)">
+            </div>
+            <button onclick="generateJANs()">Generate</button>
+            <div id="error"></div>
+            <div class="barcode-container" id="barcodes"></div>
+        </div>
+
+        <div class="generator">
+            <h2>Voucher Number Generator</h2>
+            <input type="number" id="voucherStart" placeholder="Start Number">
+            <input type="number" id="voucherEnd" placeholder="End Number">
+            <div class="button-group">
+                <button onclick="generateVoucherNumbers()">Generate</button>
+                <button id="downloadCsv" disabled onclick="downloadVoucherCSV()">Download CSV</button>
+            </div>
+            <div id="voucher-error"></div>
+            <div id="voucherResult"></div>
+        </div>
+    </div>
+
+    <script>
+       // Array to store generated voucher numbers
+       let generatedVouchers = [];
+
+       function generateJANs() {
+           const inputs = document.querySelectorAll('.jan-input');
+           const error = document.getElementById('error');
+           const barcodesContainer = document.getElementById('barcodes');
+           
+           barcodesContainer.innerHTML = '';
+           error.textContent = '';
+           inputs.forEach((input, index) => {
+               const janCode = input.value;
+               if (!/^\d{13}$/.test(janCode)) {
+                   error.textContent += `Input ${index + 1}: Please enter a 13-digit number.\n`;
+                   return;
+               }
+               const barcodeItem = document.createElement('div');
+               barcodeItem.className = 'barcode-item';
+               const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+               barcodeItem.appendChild(svg);
+               barcodesContainer.appendChild(barcodeItem);
+               JsBarcode(svg, janCode, {
+                   format: "EAN13",
+                   width: 2,
+                   height: 100,
+                   displayValue: true
+               });
+           });
+       }
+       
+       function generateVoucherNumbers() {
+           const start = BigInt(document.getElementById('voucherStart').value || 0);
+           const end = BigInt(document.getElementById('voucherEnd').value || 0);
+           const errorElement = document.getElementById('voucher-error');
+           const resultElement = document.getElementById('voucherResult');
+           const downloadButton = document.getElementById('downloadCsv');
+       
+           if (start > end) {
+               errorElement.textContent = 'Start number must be less than or equal to the end number.';
+               resultElement.innerHTML = '';
+               downloadButton.disabled = true;
+               generatedVouchers = [];
+               return;
+           }
+       
+           errorElement.textContent = '';
+           let result = '';
+           generatedVouchers = [];
+           const startTime = performance.now();
+       
+           for (let i = start; i <= end; i++) {
+               const remainder = i % 7n;
+               const voucherNumber = i * 10n + remainder;
+               generatedVouchers.push(voucherNumber.toString());
+               result += `<div class="voucher-number">${voucherNumber}</div>`;
+       
+               if (performance.now() - startTime > 5000) {  // If processing takes more than 5 seconds
+                   errorElement.textContent = 'Processing is taking too long. Please try with a smaller range.';
+                   break;
+               }
+           }
+       
+           resultElement.innerHTML = result;
+           
+           // Enable download button only if voucher numbers have been generated
+           downloadButton.disabled = generatedVouchers.length === 0;
+       }
+       
+       function downloadVoucherCSV() {
+           if (generatedVouchers.length === 0) {
+               document.getElementById('voucher-error').textContent = 'No data to download.';
+               return;
+           }
+           
+           // Create data in CSV format
+           const csvContent = "Voucher Number\n" + generatedVouchers.join("\n");
+           
+           // Create a Blob object
+           const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+           
+           // Create download link
+           const link = document.createElement("a");
+           
+           // Check if browser supports download attribute
+           if (window.navigator.msSaveOrOpenBlob) {
+               // For IE and Edge
+               window.navigator.msSaveBlob(blob, "VoucherNumbers.csv");
+           } else {
+               // For other modern browsers
+               const url = URL.createObjectURL(blob);
+               link.href = url;
+               link.setAttribute("download", "VoucherNumbers.csv");
+               document.body.appendChild(link);
+               link.click();
+               document.body.removeChild(link);
+           }
+       }
+    </script>
+</body>
+</html>
